@@ -69,6 +69,16 @@ pub struct CreatorProfile {
     pub supply: u32,
 }
 
+/// Shared validation: panics if the payment amount is zero or negative.
+///
+/// Use this before any purchase or payment logic to reject empty transactions
+/// with a clear, consistent error message.
+pub fn assert_positive_amount(amount: i128) {
+    if amount <= 0 {
+        panic!("payment amount must be positive");
+    }
+}
+
 #[contract]
 pub struct CreatorKeysContract;
 
@@ -90,6 +100,7 @@ impl CreatorKeysContract {
 
     pub fn buy_key(env: Env, creator: Address, buyer: Address, payment: i128) -> u32 {
         buyer.require_auth();
+        assert_positive_amount(payment);
 
         let price: i128 = env
             .storage()
@@ -120,6 +131,19 @@ impl CreatorKeysContract {
         env.storage().persistent().get(&key)
     }
 
+    /// Read-only view: returns the total key supply for a creator.
+    ///
+    /// Returns `0` if the creator is not registered, avoiding panics for
+    /// invalid lookups.
+    pub fn get_total_key_supply(env: Env, creator: Address) -> u32 {
+        let key = DataKey::Creator(creator);
+        env.storage()
+            .persistent()
+            .get::<DataKey, CreatorProfile>(&key)
+            .map(|p| p.supply)
+            .unwrap_or(0)
+    }
+
     pub fn set_fee_config(env: Env, admin: Address, creator_bps: u32, protocol_bps: u32) {
         admin.require_auth();
         fee::assert_valid_fee_bps(creator_bps, protocol_bps);
@@ -132,9 +156,7 @@ impl CreatorKeysContract {
 
     pub fn set_key_price(env: Env, admin: Address, price: i128) {
         admin.require_auth();
-        if price <= 0 {
-            panic!("key price must be positive");
-        }
+        assert_positive_amount(price);
         env.storage().persistent().set(&DataKey::KeyPrice, &price);
     }
 
