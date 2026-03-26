@@ -71,6 +71,7 @@ pub enum DataKey {
     Creator(Address),
     FeeConfig,
     KeyPrice,
+    TreasuryAddress,
 }
 
 #[derive(Clone)]
@@ -91,6 +92,19 @@ pub fn assert_positive_amount(amount: i128) {
     }
 }
 
+/// Reads the key balance (supply) for a creator, returning `0` for unregistered creators.
+///
+/// Use this helper wherever repeated key balance read logic is needed to keep
+/// missing-balance behavior consistent across the contract.
+pub fn read_key_balance(env: &Env, creator: &Address) -> u32 {
+    let key = DataKey::Creator(creator.clone());
+    env.storage()
+        .persistent()
+        .get::<DataKey, CreatorProfile>(&key)
+        .map(|p| p.supply)
+        .unwrap_or(0)
+}
+
 #[contract]
 pub struct CreatorKeysContract;
 
@@ -100,6 +114,10 @@ impl CreatorKeysContract {
         creator.require_auth();
 
         let key = DataKey::Creator(creator.clone());
+        if env.storage().persistent().has(&key) {
+            panic!("creator already registered");
+        }
+
         let profile = CreatorProfile {
             creator,
             handle,
@@ -146,14 +164,18 @@ impl CreatorKeysContract {
     /// Read-only view: returns the total key supply for a creator.
     ///
     /// Returns `0` if the creator is not registered, avoiding panics for
-    /// invalid lookups.
+    /// invalid lookups. Delegates to the shared [`read_key_balance`] helper.
     pub fn get_total_key_supply(env: Env, creator: Address) -> u32 {
+        read_key_balance(&env, &creator)
+    }
+
+    /// Read-only view: returns whether a creator is registered in the contract.
+    ///
+    /// Returns `true` if a [`CreatorProfile`] exists for the given address,
+    /// `false` otherwise. Does not mutate state.
+    pub fn is_creator_registered(env: Env, creator: Address) -> bool {
         let key = DataKey::Creator(creator);
-        env.storage()
-            .persistent()
-            .get::<DataKey, CreatorProfile>(&key)
-            .map(|p| p.supply)
-            .unwrap_or(0)
+        env.storage().persistent().has(&key)
     }
 
     pub fn set_fee_config(env: Env, admin: Address, creator_bps: u32, protocol_bps: u32) {
@@ -174,6 +196,26 @@ impl CreatorKeysContract {
 
     pub fn get_fee_config(env: Env) -> Option<fee::FeeConfig> {
         env.storage().persistent().get(&DataKey::FeeConfig)
+    }
+
+    /// Sets the protocol treasury address.
+    ///
+    /// Only callable by an authorized admin. Stores the treasury address used
+    /// for protocol fee routing.
+    pub fn set_treasury_address(env: Env, admin: Address, treasury: Address) {
+        admin.require_auth();
+        env.storage()
+            .persistent()
+            .set(&DataKey::TreasuryAddress, &treasury);
+    }
+
+    /// Read-only view: returns the current protocol treasury address.
+    ///
+    /// Returns `None` if no treasury address has been configured.
+    /// Use this method for indexers and read-only callers that need the current
+    /// treasury routing target.
+    pub fn get_treasury_address(env: Env) -> Option<Address> {
+        env.storage().persistent().get(&DataKey::TreasuryAddress)
     }
 
     /// Read-only view: returns the current protocol fee configuration.
