@@ -10,6 +10,7 @@ use soroban_sdk::{
 pub enum ContractError {
     AlreadyRegistered = 1,
     NotRegistered = 2,
+    Overflow = 3,
 }
 
 #[derive(Clone)]
@@ -18,7 +19,7 @@ pub enum DataKey {
     Creator(Address),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 #[contracttype]
 pub struct CreatorProfile {
     pub creator: Address,
@@ -65,7 +66,10 @@ impl CreatorKeysContract {
             .get(&key)
             .ok_or(ContractError::NotRegistered)?;
 
-        profile.supply += 1;
+        profile.supply = profile
+            .supply
+            .checked_add(1)
+            .ok_or(ContractError::Overflow)?;
         env.storage().persistent().set(&key, &profile);
         env.events()
             .publish((symbol_short!("buy"), creator, buyer), profile.supply);
@@ -73,9 +77,12 @@ impl CreatorKeysContract {
         Ok(profile.supply)
     }
 
-    pub fn get_creator(env: Env, creator: Address) -> Option<CreatorProfile> {
+    pub fn get_creator(env: Env, creator: Address) -> Result<CreatorProfile, ContractError> {
         let key = DataKey::Creator(creator);
-        env.storage().persistent().get(&key)
+        env.storage()
+            .persistent()
+            .get(&key)
+            .ok_or(ContractError::NotRegistered)
     }
 }
 

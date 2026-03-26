@@ -13,7 +13,7 @@ fn test_register_creator() {
 
     client.register_creator(&creator, &handle);
 
-    let profile = client.get_creator(&creator).unwrap();
+    let profile = client.get_creator(&creator);
     assert_eq!(profile.handle, handle);
     assert_eq!(profile.creator, creator);
     assert_eq!(profile.supply, 0);
@@ -65,6 +65,19 @@ fn test_buy_key_success() {
     let supply = client.buy_key(&creator, &buyer);
     assert_eq!(supply, 1);
 
-    let profile = client.get_creator(&creator).unwrap();
+    let profile = client.get_creator(&creator);
     assert_eq!(profile.supply, 1);
+}
+
+#[test]
+fn test_get_creator_fails_if_not_registered() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(CreatorKeysContract, ());
+    let client = CreatorKeysContractClient::new(&env, &contract_id);
+
+    let creator = Address::generate(&env);
+
+    let result = client.try_get_creator(&creator);
+    assert_eq!(result, Err(Ok(ContractError::NotRegistered)));
 }
