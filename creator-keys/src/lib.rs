@@ -179,8 +179,10 @@ impl CreatorKeysContract {
             .ok_or(ContractError::Overflow)?;
         env.storage().persistent().set(&balance_key, &new_balance);
 
-        env.events()
-            .publish((symbol_short!("buy"), creator, buyer), profile.supply);
+        env.events().publish(
+            (symbol_short!("buy"), creator, buyer),
+            (profile.supply, payment),
+        );
 
         Ok(profile.supply)
     }
