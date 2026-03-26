@@ -88,6 +88,7 @@ pub struct CreatorDetailsView {
     pub handle: String,
     pub supply: u32,
     pub is_registered: bool,
+}
 /// Stable, non-optional view of a creator's fee configuration.
 ///
 /// Returned by [`CreatorKeysContract::get_creator_fee_config`] for indexer-friendly consumption.
