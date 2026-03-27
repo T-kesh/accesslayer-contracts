@@ -16,6 +16,7 @@ pub enum ContractError {
     NotPositiveAmount = 6,
     FeeConfigNotSet = 7,
     InvalidFeeConfig = 8,
+    InsufficientBalance = 9,
 }
 
 pub mod fee {
@@ -117,6 +118,18 @@ pub struct HolderKeyCountView {
     pub creator_exists: bool,
 }
 
+/// Stable, non-optional view of a buy or sell quote.
+///
+/// Returned by [`CreatorKeysContract::get_buy_quote`] and [`CreatorKeysContract::get_sell_quote`].
+#[derive(Clone, Debug, PartialEq)]
+#[contracttype]
+pub struct QuoteResponse {
+    pub price: i128,
+    pub creator_fee: i128,
+    pub protocol_fee: i128,
+    pub total_amount: i128,
+}
+
 /// Stable protocol state version for read-only consumers.
 ///
 /// Bump this value only when externally consumed protocol state semantics change.
@@ -159,6 +172,29 @@ pub fn read_key_balance(env: &Env, creator: &Address) -> u32 {
     read_creator_profile(env, creator)
         .map(|p| p.supply)
         .unwrap_or(0)
+}
+
+/// Formats a quote response with consistent total amount calculation.
+///
+/// For buys, total_amount = price + fees.
+/// For sells, total_amount = price - fees.
+fn format_quote_response(
+    price: i128,
+    creator_fee: i128,
+    protocol_fee: i128,
+    is_buy: bool,
+) -> QuoteResponse {
+    let total_amount = if is_buy {
+        price + creator_fee + protocol_fee
+    } else {
+        price - creator_fee - protocol_fee
+    };
+    QuoteResponse {
+        price,
+        creator_fee,
+        protocol_fee,
+        total_amount,
+    }
 }
 
 #[contract]
@@ -446,6 +482,66 @@ impl CreatorKeysContract {
                 is_configured: false,
             },
         }
+    }
+
+    /// Read-only view: returns a quote for buying a key.
+    ///
+    /// Returns a [`QuoteResponse`] containing the current price and fee breakdown.
+    /// Fees are calculated based on the fixed key price.
+    pub fn get_buy_quote(env: Env, creator: Address) -> Result<QuoteResponse, ContractError> {
+        let price: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::KeyPrice)
+            .ok_or(ContractError::KeyPriceNotSet)?;
+
+        if read_creator_profile(&env, &creator).is_none() {
+            return Err(ContractError::NotRegistered);
+        }
+
+        let (creator_fee, protocol_fee) = Self::compute_fees_for_payment(env.clone(), price)?;
+
+        Ok(format_quote_response(
+            price,
+            creator_fee,
+            protocol_fee,
+            true,
+        ))
+    }
+
+    /// Read-only view: returns a quote for selling a key.
+    ///
+    /// Returns a [`QuoteResponse`] containing the current price and fee breakdown.
+    /// Fees are calculated based on the fixed key price.
+    /// Rejects with [`ContractError::InsufficientBalance`] if the holder has no keys.
+    pub fn get_sell_quote(
+        env: Env,
+        creator: Address,
+        holder: Address,
+    ) -> Result<QuoteResponse, ContractError> {
+        let price: i128 = env
+            .storage()
+            .persistent()
+            .get(&DataKey::KeyPrice)
+            .ok_or(ContractError::KeyPriceNotSet)?;
+
+        if read_creator_profile(&env, &creator).is_none() {
+            return Err(ContractError::NotRegistered);
+        }
+
+        let balance = Self::get_key_balance(env.clone(), creator, holder);
+        if balance == 0 {
+            return Err(ContractError::InsufficientBalance);
+        }
+
+        let (creator_fee, protocol_fee) = Self::compute_fees_for_payment(env.clone(), price)?;
+
+        Ok(format_quote_response(
+            price,
+            creator_fee,
+            protocol_fee,
+            false,
+        ))
     }
 }
 
