@@ -1,8 +1,8 @@
 #![no_std]
 
-use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String,
-};
+use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, String};
+
+pub mod events;
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
@@ -103,6 +103,20 @@ pub struct CreatorFeeView {
     pub is_configured: bool,
 }
 
+/// Stable, non-optional view of a holder's key count for a creator.
+///
+/// Returned by [`CreatorKeysContract::get_holder_key_count`] for indexer-friendly consumption.
+/// When `creator_exists` is `false`, the creator is not registered and `key_count` is `0`.
+/// When `creator_exists` is `true` but the holder has no keys, `key_count` is `0`.
+#[derive(Clone)]
+#[contracttype]
+pub struct HolderKeyCountView {
+    pub creator: Address,
+    pub holder: Address,
+    pub key_count: u32,
+    pub creator_exists: bool,
+}
+
 /// Stable protocol state version for read-only consumers.
 ///
 /// Bump this value only when externally consumed protocol state semantics change.
@@ -171,7 +185,7 @@ impl CreatorKeysContract {
         };
 
         env.storage().persistent().set(&key, &profile);
-        env.events().publish((symbol_short!("register"),), key);
+        env.events().publish((events::REGISTER_EVENT_NAME,), key);
 
         Ok(())
     }
@@ -217,7 +231,7 @@ impl CreatorKeysContract {
         env.storage().persistent().set(&balance_key, &new_balance);
 
         env.events().publish(
-            (symbol_short!("buy"), creator, buyer),
+            (events::BUY_EVENT_NAME, creator, buyer),
             (profile.supply, payment),
         );
 
@@ -227,6 +241,29 @@ impl CreatorKeysContract {
     pub fn get_key_balance(env: Env, creator: Address, wallet: Address) -> u32 {
         let key = DataKey::KeyBalance(creator, wallet);
         env.storage().persistent().get(&key).unwrap_or(0)
+    }
+
+    /// Read-only view: returns a stable view of a holder's key count for a creator.
+    ///
+    /// Returns a [`HolderKeyCountView`] regardless of creator registration status.
+    /// When the creator is not registered, `creator_exists` is `false` and `key_count` is `0`.
+    /// When the creator exists but the holder has no keys, `key_count` is `0`.
+    /// This method is designed for indexer-friendly consumption and avoids panics.
+    pub fn get_holder_key_count(env: Env, creator: Address, holder: Address) -> HolderKeyCountView {
+        let creator_exists = read_creator_profile(&env, &creator).is_some();
+        let key_count = if creator_exists {
+            let key = DataKey::KeyBalance(creator.clone(), holder.clone());
+            env.storage().persistent().get(&key).unwrap_or(0)
+        } else {
+            0
+        };
+
+        HolderKeyCountView {
+            creator,
+            holder,
+            key_count,
+            creator_exists,
+        }
     }
 
     pub fn get_creator(env: Env, creator: Address) -> Result<CreatorProfile, ContractError> {

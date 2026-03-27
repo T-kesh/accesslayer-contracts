@@ -1,8 +1,7 @@
 //! Tests for registration and buy event payloads (#22).
 
-use creator_keys::{CreatorKeysContract, CreatorKeysContractClient};
+use creator_keys::{events, CreatorKeysContract, CreatorKeysContractClient};
 use soroban_sdk::{
-    symbol_short,
     testutils::{Address as _, Events},
     Address, Env, IntoVal, String,
 };
@@ -36,7 +35,7 @@ fn test_register_creator_emits_event() {
 
     // First topic should be the "register" symbol
     let topic: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
-    assert_eq!(topic, symbol_short!("register"));
+    assert_eq!(topic, events::REGISTER_EVENT_NAME);
 }
 
 #[test]
@@ -73,9 +72,9 @@ fn test_buy_key_emits_event_with_correct_topics() {
     let last = events.last().unwrap();
     let (_, topics, _) = last;
 
-    // Topics: (symbol_short!("buy"), creator, buyer)
+    // Topics: (events::BUY_EVENT_NAME, creator, buyer)
     let event_sym: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
-    assert_eq!(event_sym, symbol_short!("buy"));
+    assert_eq!(event_sym, events::BUY_EVENT_NAME);
 
     let event_creator: Address = topics.get(1).unwrap().into_val(&env);
     assert_eq!(event_creator, creator);
@@ -130,7 +129,7 @@ fn test_buy_key_event_present_after_purchase() {
     let has_buy_event = events.iter().any(|(_, topics, _)| {
         if let Some(v) = topics.get(0) {
             let sym: soroban_sdk::Symbol = v.into_val(&env);
-            sym == symbol_short!("buy")
+            sym == events::BUY_EVENT_NAME
         } else {
             false
         }
