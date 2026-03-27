@@ -1,7 +1,7 @@
 //! Tests verifying that the buy-key event includes the payment amount.
 
-use creator_keys::{CreatorKeysContract, CreatorKeysContractClient};
-use soroban_sdk::{symbol_short, testutils::Address as _, testutils::Events, Env, IntoVal, String};
+use creator_keys::{events, CreatorKeysContract, CreatorKeysContractClient};
+use soroban_sdk::{testutils::Address as _, testutils::Events, Env, IntoVal, String};
 
 #[test]
 fn test_buy_key_event_includes_payment_amount() {
@@ -53,7 +53,7 @@ fn test_buy_key_event_topics_include_creator_and_buyer() {
     let topic_creator: soroban_sdk::Address = buy_event.1.get(1).unwrap().into_val(&env);
     let topic_buyer: soroban_sdk::Address = buy_event.1.get(2).unwrap().into_val(&env);
 
-    assert_eq!(topic_symbol, symbol_short!("buy"));
+    assert_eq!(topic_symbol, events::BUY_EVENT_NAME);
     assert_eq!(topic_creator, creator);
     assert_eq!(topic_buyer, buyer);
 }
