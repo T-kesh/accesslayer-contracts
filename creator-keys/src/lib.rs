@@ -223,7 +223,15 @@ impl CreatorKeysContract {
         };
 
         env.storage().persistent().set(&key, &profile);
-        env.events().publish((events::REGISTER_EVENT_NAME,), key);
+        env.events().publish(
+            (events::REGISTER_EVENT_NAME, profile.creator.clone()),
+            events::CreatorRegisteredEvent {
+                creator: profile.creator.clone(),
+                handle: profile.handle.clone(),
+                supply: profile.supply,
+                holder_count: profile.holder_count,
+            },
+        );
 
         Ok(())
     }

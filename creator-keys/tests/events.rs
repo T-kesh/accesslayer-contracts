@@ -1,4 +1,4 @@
-//! Tests for registration and buy event payloads (#22).
+//! Tests for registration and buy event payloads.
 
 use creator_keys::{events, CreatorKeysContract, CreatorKeysContractClient};
 use soroban_sdk::{
@@ -33,9 +33,32 @@ fn test_register_creator_emits_event() {
     let last = events.last().unwrap();
     let (_, topics, _data) = last;
 
-    // First topic should be the "register" symbol
     let topic: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
     assert_eq!(topic, events::REGISTER_EVENT_NAME);
+
+    let event_creator: Address = topics.get(1).unwrap().into_val(&env);
+    assert_eq!(event_creator, creator);
+}
+
+#[test]
+fn test_register_creator_event_data_is_indexer_friendly() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let (client, _) = setup(&env);
+
+    let creator = Address::generate(&env);
+    let handle = String::from_str(&env, "alice");
+
+    client.register_creator(&creator, &handle);
+
+    let events = env.events().all();
+    let last = events.last().unwrap();
+    let payload: events::CreatorRegisteredEvent = last.2.into_val(&env);
+
+    assert_eq!(payload.creator, creator);
+    assert_eq!(payload.handle, handle);
+    assert_eq!(payload.supply, 0);
+    assert_eq!(payload.holder_count, 0);
 }
 
 #[test]

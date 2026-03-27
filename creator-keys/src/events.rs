@@ -4,10 +4,27 @@
 //! the contract, reducing string duplication and ensuring consistency across
 //! event emission paths.
 
-use soroban_sdk::{symbol_short, Symbol};
+use soroban_sdk::{contracttype, symbol_short, Address, String, Symbol};
 
 /// Event name for creator registration.
 pub const REGISTER_EVENT_NAME: Symbol = symbol_short!("register");
 
 /// Event name for key purchase.
 pub const BUY_EVENT_NAME: Symbol = symbol_short!("buy");
+
+/// Stable registration event payload for downstream indexers.
+///
+/// Event shape:
+/// - topics: `(REGISTER_EVENT_NAME, creator)`
+/// - data: `CreatorRegisteredEvent`
+///
+/// This keeps the creator address indexed in event topics while preserving
+/// a predictable payload for off-chain consumers.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[contracttype]
+pub struct CreatorRegisteredEvent {
+    pub creator: Address,
+    pub handle: String,
+    pub supply: u32,
+    pub holder_count: u32,
+}
