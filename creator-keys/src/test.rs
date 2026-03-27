@@ -232,3 +232,104 @@ fn test_get_treasury_address_persists_across_reads() {
     assert_eq!(first_read, second_read);
     assert_eq!(first_read, Some(treasury));
 }
+
+#[test]
+fn test_get_buy_quote_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(CreatorKeysContract, ());
+    let client = CreatorKeysContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_key_price(&admin, &1000);
+    client.set_fee_config(&admin, &9000, &1000); // 90/10 split
+
+    let creator = Address::generate(&env);
+    let handle = String::from_str(&env, "alice");
+    client.register_creator(&creator, &handle);
+
+    let quote = client.get_buy_quote(&creator);
+    assert_eq!(quote.price, 1000);
+    assert_eq!(quote.creator_fee, 900);
+    assert_eq!(quote.protocol_fee, 100);
+    assert_eq!(quote.total_amount, 2000); // 1000 + 900 + 100
+}
+
+#[test]
+fn test_get_sell_quote_success() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(CreatorKeysContract, ());
+    let client = CreatorKeysContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_key_price(&admin, &1000);
+    client.set_fee_config(&admin, &9000, &1000); // 90/10 split
+
+    let creator = Address::generate(&env);
+    let handle = String::from_str(&env, "alice");
+    client.register_creator(&creator, &handle);
+
+    let buyer = Address::generate(&env);
+    client.buy_key(&creator, &buyer, &1000);
+
+    let quote = client.get_sell_quote(&creator, &buyer);
+    assert_eq!(quote.price, 1000);
+    assert_eq!(quote.creator_fee, 900);
+    assert_eq!(quote.protocol_fee, 100);
+    assert_eq!(quote.total_amount, 0); // 1000 - 900 - 100
+}
+
+#[test]
+fn test_get_sell_quote_fails_if_insufficient_balance() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(CreatorKeysContract, ());
+    let client = CreatorKeysContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_key_price(&admin, &1000);
+    client.set_fee_config(&admin, &9000, &1000);
+
+    let creator = Address::generate(&env);
+    let handle = String::from_str(&env, "alice");
+    client.register_creator(&creator, &handle);
+
+    let holder = Address::generate(&env); // Zero balance
+    let result = client.try_get_sell_quote(&creator, &holder);
+    assert_eq!(result, Err(Ok(ContractError::InsufficientBalance)));
+}
+
+#[test]
+fn test_get_quote_fails_if_not_registered() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(CreatorKeysContract, ());
+    let client = CreatorKeysContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_key_price(&admin, &1000);
+
+    let creator = Address::generate(&env); // Not registered
+    let result = client.try_get_buy_quote(&creator);
+    assert_eq!(result, Err(Ok(ContractError::NotRegistered)));
+}
+
+#[test]
+fn test_get_quote_fails_if_fee_not_set() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(CreatorKeysContract, ());
+    let client = CreatorKeysContractClient::new(&env, &contract_id);
+
+    let admin = Address::generate(&env);
+    client.set_key_price(&admin, &1000);
+    // Fee config NOT set
+
+    let creator = Address::generate(&env);
+    let handle = String::from_str(&env, "alice");
+    client.register_creator(&creator, &handle);
+
+    let result = client.try_get_buy_quote(&creator);
+    assert_eq!(result, Err(Ok(ContractError::FeeConfigNotSet)));
+}
