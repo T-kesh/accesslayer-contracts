@@ -1,4 +1,5 @@
 //! Focused tests for the `get_creator_fee_recipient` read-only method.
+//! Reviewed and confirmed: 29 Mar 2026.
 
 use creator_keys::{ContractError, CreatorKeysContract, CreatorKeysContractClient};
 use soroban_sdk::{testutils::Address as _, Address, Env, String};

@@ -12,4 +12,6 @@ fn test_creator_read_method_names_are_stable() {
     assert_eq!(creator_reads::FEE_BPS, "get_creator_fee_bps");
     assert_eq!(creator_reads::TREASURY_SHARE, "get_creator_treasury_share");
     assert_eq!(creator_reads::HOLDER_KEY_COUNT, "get_holder_key_count");
+    assert_eq!(creator_reads::NAME, "get_key_name");
+    assert_eq!(creator_reads::SYMBOL, "get_key_symbol");
 }

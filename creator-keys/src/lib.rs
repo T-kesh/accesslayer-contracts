@@ -1,4 +1,5 @@
 #![no_std]
+pub mod quote_view_errors;
 
 use soroban_sdk::{contract, contracterror, contractimpl, contracttype, Address, Env, String};
 
@@ -84,13 +85,32 @@ pub mod fee {
 
 pub mod constants {
     use super::DataKey;
+    use soroban_sdk::Address;
 
     pub mod storage {
-        use super::DataKey;
+        use super::{creator_key, key_balance_key, DataKey};
+        use soroban_sdk::Address;
 
         pub const FEE_CONFIG: DataKey = DataKey::FeeConfig;
         pub const KEY_PRICE: DataKey = DataKey::KeyPrice;
         pub const TREASURY_ADDRESS: DataKey = DataKey::TreasuryAddress;
+        pub const ADMIN_ADDRESS: DataKey = DataKey::AdminAddress;
+
+        pub fn creator(creator: &Address) -> DataKey {
+            creator_key(creator)
+        }
+
+        pub fn key_balance(creator: &Address, holder: &Address) -> DataKey {
+            key_balance_key(creator, holder)
+        }
+    }
+
+    fn creator_key(creator: &Address) -> DataKey {
+        DataKey::Creator(creator.clone())
+    }
+
+    fn key_balance_key(creator: &Address, holder: &Address) -> DataKey {
+        DataKey::KeyBalance(creator.clone(), holder.clone())
     }
 
     pub mod creator_reads {
@@ -102,6 +122,8 @@ pub mod constants {
         pub const PROFILE: &str = "get_creator";
         pub const SUPPLY: &str = "get_creator_supply";
         pub const TREASURY_SHARE: &str = "get_creator_treasury_share";
+        pub const NAME: &str = "get_key_name";
+        pub const SYMBOL: &str = "get_key_symbol";
     }
 }
 
@@ -208,7 +230,7 @@ pub struct CreatorProfile {
 /// Use this helper wherever repeated creator read logic is needed to keep
 /// missing-creator behavior consistent across the contract.
 pub fn read_creator_profile(env: &Env, creator: &Address) -> Option<CreatorProfile> {
-    let key = DataKey::Creator(creator.clone());
+    let key = constants::storage::creator(creator);
     env.storage()
         .persistent()
         .get::<DataKey, CreatorProfile>(&key)
@@ -263,6 +285,24 @@ fn read_required_protocol_fee_config(env: &Env) -> Result<fee::FeeConfig, Contra
     read_protocol_fee_config(env).ok_or(ContractError::FeeConfigNotSet)
 }
 
+/// Resolves and validates the shared inputs required by read-only quote methods.
+///
+/// Reads the key price from storage and confirms the creator is registered.
+/// Returns `(price)` on success, or the appropriate [`ContractError`] on failure.
+fn resolve_quote_inputs(env: &Env, creator: &Address) -> Result<i128, ContractError> {
+    let price: i128 = env
+        .storage()
+        .persistent()
+        .get(&constants::storage::KEY_PRICE)
+        .ok_or(ContractError::KeyPriceNotSet)?;
+
+    if read_creator_profile(env, creator).is_none() {
+        return Err(ContractError::NotRegistered);
+    }
+
+    Ok(price)
+}
+
 /// Formats a quote response with overflow-safe total amount calculation.
 ///
 /// Returns `Err(ContractError::Overflow)` if any addition or subtraction would overflow.
@@ -302,7 +342,7 @@ impl CreatorKeysContract {
     ) -> Result<(), ContractError> {
         creator.require_auth();
 
-        let key = DataKey::Creator(creator.clone());
+        let key = constants::storage::creator(&creator);
         if env.storage().persistent().has(&key) {
             return Err(ContractError::AlreadyRegistered);
         }
@@ -353,7 +393,7 @@ impl CreatorKeysContract {
 
         let mut profile: CreatorProfile = read_registered_creator_profile(&env, &creator)?;
 
-        let balance_key = DataKey::KeyBalance(creator.clone(), buyer.clone());
+        let balance_key = constants::storage::key_balance(&creator, &buyer);
         let current_balance: u32 = env.storage().persistent().get(&balance_key).unwrap_or(0);
 
         if current_balance == 0 {
@@ -368,7 +408,7 @@ impl CreatorKeysContract {
             .checked_add(1)
             .ok_or(ContractError::Overflow)?;
 
-        let key = DataKey::Creator(creator.clone());
+        let key = constants::storage::creator(&creator);
         env.storage().persistent().set(&key, &profile);
 
         let new_balance = current_balance
@@ -389,7 +429,7 @@ impl CreatorKeysContract {
 
         let mut profile: CreatorProfile = read_registered_creator_profile(&env, &creator)?;
 
-        let balance_key = DataKey::KeyBalance(creator.clone(), seller);
+        let balance_key = constants::storage::key_balance(&creator, &seller);
         let current_balance: u32 = env.storage().persistent().get(&balance_key).unwrap_or(0);
         if current_balance == 0 {
             return Err(ContractError::InsufficientBalance);
@@ -410,7 +450,7 @@ impl CreatorKeysContract {
                 .ok_or(ContractError::Overflow)?;
         }
 
-        let key = DataKey::Creator(creator);
+        let key = constants::storage::creator(&creator);
         env.storage().persistent().set(&key, &profile);
         env.storage().persistent().set(&balance_key, &new_balance);
 
@@ -418,7 +458,7 @@ impl CreatorKeysContract {
     }
 
     pub fn get_key_balance(env: Env, creator: Address, wallet: Address) -> u32 {
-        let key = DataKey::KeyBalance(creator, wallet);
+        let key = constants::storage::key_balance(&creator, &wallet);
         env.storage().persistent().get(&key).unwrap_or(0)
     }
 
@@ -431,7 +471,7 @@ impl CreatorKeysContract {
     pub fn get_holder_key_count(env: Env, creator: Address, holder: Address) -> HolderKeyCountView {
         let creator_exists = read_creator_profile(&env, &creator).is_some();
         let key_count = if creator_exists {
-            let key = DataKey::KeyBalance(creator.clone(), holder.clone());
+            let key = constants::storage::key_balance(&creator, &holder);
             env.storage().persistent().get(&key).unwrap_or(0)
         } else {
             0
@@ -455,7 +495,12 @@ impl CreatorKeysContract {
     /// When the creator is not registered, `is_registered` is `false` and
     /// default values are provided for other fields.
     pub fn get_creator_details(env: Env, creator: Address) -> CreatorDetailsView {
-        match read_creator_profile(&env, &creator) {
+        let key = constants::storage::creator(&creator);
+        match env
+            .storage()
+            .persistent()
+            .get::<DataKey, CreatorProfile>(&key)
+        {
             Some(profile) => CreatorDetailsView {
                 creator: profile.creator,
                 handle: profile.handle,
@@ -483,6 +528,24 @@ impl CreatorKeysContract {
     /// Returns the fixed [`KEY_DECIMALS`] constant. Does not read or mutate contract state.
     pub fn get_key_decimals(_env: Env) -> u32 {
         KEY_DECIMALS
+    }
+
+    /// Read-only view: returns the display name for a creator's key.
+    ///
+    /// Returns the creator's handle for registered creators. Fails with
+    /// [`ContractError::NotRegistered`] if the creator is not registered.
+    pub fn get_key_name(env: Env, creator: Address) -> Result<String, ContractError> {
+        let profile = read_registered_creator_profile(&env, &creator)?;
+        Ok(profile.handle)
+    }
+
+    /// Read-only view: returns the ticker symbol for a creator's key.
+    ///
+    /// Returns the creator's handle for registered creators. Fails with
+    /// [`ContractError::NotRegistered`] if the creator is not registered.
+    pub fn get_key_symbol(env: Env, creator: Address) -> Result<String, ContractError> {
+        let profile = read_registered_creator_profile(&env, &creator)?;
+        Ok(profile.handle)
     }
 
     /// Read-only view: returns the total key supply for a creator.
@@ -613,7 +676,7 @@ impl CreatorKeysContract {
         admin.require_auth();
         env.storage()
             .persistent()
-            .set(&DataKey::AdminAddress, &new_admin);
+            .set(&constants::storage::ADMIN_ADDRESS, &new_admin);
     }
 
     /// Read-only view: returns the current protocol admin address.
@@ -622,7 +685,9 @@ impl CreatorKeysContract {
     /// Use this method for indexers and read-only callers that need the current
     /// protocol admin address.
     pub fn get_protocol_admin(env: Env) -> Option<Address> {
-        env.storage().persistent().get(&DataKey::AdminAddress)
+        env.storage()
+            .persistent()
+            .get(&constants::storage::ADMIN_ADDRESS)
     }
 
     /// Read-only view: returns whether protocol configuration has been initialized.
@@ -639,11 +704,7 @@ impl CreatorKeysContract {
     /// When no config is stored, `is_configured` is `false` and both bps fields are `0`.
     /// Use this method for indexers and read-only callers that need a non-optional result.
     pub fn get_protocol_fee_view(env: Env) -> ProtocolFeeView {
-        match env
-            .storage()
-            .persistent()
-            .get::<DataKey, fee::FeeConfig>(&constants::storage::FEE_CONFIG)
-        {
+        match read_protocol_fee_config(&env) {
             Some(config) => ProtocolFeeView {
                 creator_bps: config.creator_bps,
                 protocol_bps: config.protocol_bps,
@@ -707,18 +768,8 @@ impl CreatorKeysContract {
     /// Returns a [`QuoteResponse`] containing the current price and fee breakdown.
     /// Fees are calculated based on the fixed key price.
     pub fn get_buy_quote(env: Env, creator: Address) -> Result<QuoteResponse, ContractError> {
-        let price: i128 = env
-            .storage()
-            .persistent()
-            .get(&constants::storage::KEY_PRICE)
-            .ok_or(ContractError::KeyPriceNotSet)?;
-
-        if read_creator_profile(&env, &creator).is_none() {
-            return Err(ContractError::NotRegistered);
-        }
-
+        let price = resolve_quote_inputs(&env, &creator)?;
         let (creator_fee, protocol_fee) = Self::compute_fees_for_payment(env.clone(), price)?;
-
         checked_format_quote_response(price, creator_fee, protocol_fee, true)
     }
 
@@ -732,15 +783,7 @@ impl CreatorKeysContract {
         creator: Address,
         holder: Address,
     ) -> Result<QuoteResponse, ContractError> {
-        let price: i128 = env
-            .storage()
-            .persistent()
-            .get(&constants::storage::KEY_PRICE)
-            .ok_or(ContractError::KeyPriceNotSet)?;
-
-        if read_creator_profile(&env, &creator).is_none() {
-            return Err(ContractError::NotRegistered);
-        }
+        let price = resolve_quote_inputs(&env, &creator)?;
 
         let balance = Self::get_key_balance(env.clone(), creator, holder);
         if balance == 0 {
@@ -748,7 +791,6 @@ impl CreatorKeysContract {
         }
 
         let (creator_fee, protocol_fee) = Self::compute_fees_for_payment(env.clone(), price)?;
-
         checked_format_quote_response(price, creator_fee, protocol_fee, false)
     }
 }
@@ -812,6 +854,42 @@ mod tests {
             let (creator, protocol) = fee::compute_fee_split(total, 9000, 1000);
             assert_eq!(creator + protocol, total, "total={}", total);
         }
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_buy_success() {
+        let res = super::checked_format_quote_response(1000, 90, 10, true).unwrap();
+        assert_eq!(res.price, 1000);
+        assert_eq!(res.creator_fee, 90);
+        assert_eq!(res.protocol_fee, 10);
+        assert_eq!(res.total_amount, 1100);
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_sell_success() {
+        let res = super::checked_format_quote_response(1000, 90, 10, false).unwrap();
+        assert_eq!(res.price, 1000);
+        assert_eq!(res.creator_fee, 90);
+        assert_eq!(res.protocol_fee, 10);
+        assert_eq!(res.total_amount, 900);
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_buy_overflow_fees() {
+        let res = super::checked_format_quote_response(1000, i128::MAX, 1, true);
+        assert_eq!(res, Err(super::ContractError::Overflow));
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_buy_overflow_total() {
+        let res = super::checked_format_quote_response(i128::MAX, 1, 0, true);
+        assert_eq!(res, Err(super::ContractError::Overflow));
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_sell_underflow_total() {
+        let res = super::checked_format_quote_response(i128::MIN, 1, 0, false);
+        assert_eq!(res, Err(super::ContractError::Overflow));
     }
 }
 
