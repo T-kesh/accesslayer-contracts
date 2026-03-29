@@ -102,6 +102,8 @@ pub mod constants {
         pub const PROFILE: &str = "get_creator";
         pub const SUPPLY: &str = "get_creator_supply";
         pub const TREASURY_SHARE: &str = "get_creator_treasury_share";
+        pub const NAME: &str = "get_key_name";
+        pub const SYMBOL: &str = "get_key_symbol";
     }
 }
 
@@ -470,6 +472,24 @@ impl CreatorKeysContract {
     /// Returns the fixed [`KEY_DECIMALS`] constant. Does not read or mutate contract state.
     pub fn get_key_decimals(_env: Env) -> u32 {
         KEY_DECIMALS
+    }
+
+    /// Read-only view: returns the display name for a creator's key.
+    ///
+    /// Returns the creator's handle for registered creators. Fails with
+    /// [`ContractError::NotRegistered`] if the creator is not registered.
+    pub fn get_key_name(env: Env, creator: Address) -> Result<String, ContractError> {
+        let profile = read_registered_creator_profile(&env, &creator)?;
+        Ok(profile.handle)
+    }
+
+    /// Read-only view: returns the ticker symbol for a creator's key.
+    ///
+    /// Returns the creator's handle for registered creators. Fails with
+    /// [`ContractError::NotRegistered`] if the creator is not registered.
+    pub fn get_key_symbol(env: Env, creator: Address) -> Result<String, ContractError> {
+        let profile = read_registered_creator_profile(&env, &creator)?;
+        Ok(profile.handle)
     }
 
     /// Read-only view: returns the total key supply for a creator.
