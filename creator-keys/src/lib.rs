@@ -245,7 +245,7 @@ pub fn read_none_string(env: &Env) -> String {
 
 /// Reads the handle for a creator, returning an empty string for unregistered creators.
 ///
-/// Use this helper wherever repeated handle read logic is needed to maintain 
+/// Use this helper wherever repeated handle read logic is needed to maintain
 /// missing-handle behavior consistency across the contract.
 pub fn read_creator_handle(env: &Env, creator: &Address) -> String {
     read_creator_profile(env, creator)
