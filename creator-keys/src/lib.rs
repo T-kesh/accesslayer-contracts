@@ -820,7 +820,44 @@ mod tests {
             assert_eq!(creator + protocol, total, "total={}", total);
         }
     }
+
+    #[test]
+    fn test_checked_format_quote_response_buy_success() {
+        let res = super::checked_format_quote_response(1000, 90, 10, true).unwrap();
+        assert_eq!(res.price, 1000);
+        assert_eq!(res.creator_fee, 90);
+        assert_eq!(res.protocol_fee, 10);
+        assert_eq!(res.total_amount, 1100);
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_sell_success() {
+        let res = super::checked_format_quote_response(1000, 90, 10, false).unwrap();
+        assert_eq!(res.price, 1000);
+        assert_eq!(res.creator_fee, 90);
+        assert_eq!(res.protocol_fee, 10);
+        assert_eq!(res.total_amount, 900);
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_buy_overflow_fees() {
+        let res = super::checked_format_quote_response(1000, i128::MAX, 1, true);
+        assert_eq!(res, Err(super::ContractError::Overflow));
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_buy_overflow_total() {
+        let res = super::checked_format_quote_response(i128::MAX, 1, 0, true);
+        assert_eq!(res, Err(super::ContractError::Overflow));
+    }
+
+    #[test]
+    fn test_checked_format_quote_response_sell_underflow_total() {
+        let res = super::checked_format_quote_response(i128::MIN, 1, 0, false);
+        assert_eq!(res, Err(super::ContractError::Overflow));
+    }
 }
+
 
 #[cfg(test)]
 mod test;
