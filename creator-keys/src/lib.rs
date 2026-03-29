@@ -235,6 +235,24 @@ pub fn read_key_balance(env: &Env, creator: &Address) -> u32 {
         .unwrap_or(0)
 }
 
+/// Reads an empty string for use as a default in read-only view methods.
+///
+/// Use this helper wherever an empty string is needed to maintain consistency
+/// and reduce duplication of string allocation logic.
+pub fn read_none_string(env: &Env) -> String {
+    String::from_str(env, "")
+}
+
+/// Reads the handle for a creator, returning an empty string for unregistered creators.
+///
+/// Use this helper wherever repeated handle read logic is needed to maintain 
+/// missing-handle behavior consistency across the contract.
+pub fn read_creator_handle(env: &Env, creator: &Address) -> String {
+    read_creator_profile(env, creator)
+        .map(|p| p.handle)
+        .unwrap_or_else(|| read_none_string(env))
+}
+
 fn read_protocol_fee_config(env: &Env) -> Option<fee::FeeConfig> {
     env.storage()
         .persistent()
@@ -437,12 +455,7 @@ impl CreatorKeysContract {
     /// When the creator is not registered, `is_registered` is `false` and
     /// default values are provided for other fields.
     pub fn get_creator_details(env: Env, creator: Address) -> CreatorDetailsView {
-        let key = DataKey::Creator(creator.clone());
-        match env
-            .storage()
-            .persistent()
-            .get::<DataKey, CreatorProfile>(&key)
-        {
+        match read_creator_profile(&env, &creator) {
             Some(profile) => CreatorDetailsView {
                 creator: profile.creator,
                 handle: profile.handle,
@@ -451,7 +464,7 @@ impl CreatorKeysContract {
             },
             None => CreatorDetailsView {
                 creator,
-                handle: String::from_str(&env, ""),
+                handle: read_none_string(&env),
                 supply: 0,
                 is_registered: false,
             },
