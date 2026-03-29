@@ -53,6 +53,42 @@ fn test_get_fee_config_returns_stored_protocol_config() {
 }
 
 #[test]
+fn test_read_protocol_fee_config_returns_stored_config() {
+    let env = Env::default();
+    let contract_id = env.register(CreatorKeysContract, ());
+    let config = fee::FeeConfig {
+        creator_bps: 8200,
+        protocol_bps: 1800,
+    };
+
+    let stored = env.as_contract(&contract_id, || {
+        env.storage().persistent().set(&DataKey::FeeConfig, &config);
+        read_protocol_fee_config(&env).unwrap()
+    });
+
+    assert_eq!(stored.creator_bps, 8200);
+    assert_eq!(stored.protocol_bps, 1800);
+}
+
+#[test]
+fn test_read_required_protocol_fee_config_returns_stored_config() {
+    let env = Env::default();
+    let contract_id = env.register(CreatorKeysContract, ());
+    let config = fee::FeeConfig {
+        creator_bps: 7600,
+        protocol_bps: 2400,
+    };
+
+    let stored = env.as_contract(&contract_id, || {
+        env.storage().persistent().set(&DataKey::FeeConfig, &config);
+        read_required_protocol_fee_config(&env).unwrap()
+    });
+
+    assert_eq!(stored.creator_bps, 7600);
+    assert_eq!(stored.protocol_bps, 2400);
+}
+
+#[test]
 fn test_get_fee_config_reads_protocol_fee_bps() {
     let env = Env::default();
     let contract_id = env.register(CreatorKeysContract, ());
