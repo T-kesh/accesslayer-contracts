@@ -35,7 +35,9 @@ fn test_get_protocol_fee_recipient_returns_stored_address() {
     // Manually set the protocol fee recipient in storage to test the getter
     env.as_contract(&contract_id, || {
         use creator_keys::constants::storage::PROTOCOL_FEE_RECIPIENT;
-        env.storage().persistent().set(&PROTOCOL_FEE_RECIPIENT, &recipient);
+        env.storage()
+            .persistent()
+            .set(&PROTOCOL_FEE_RECIPIENT, &recipient);
     });
 
     let result = client.get_protocol_fee_recipient();
