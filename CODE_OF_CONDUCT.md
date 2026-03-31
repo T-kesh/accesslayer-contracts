@@ -14,7 +14,7 @@ We want Access Layer to be welcoming to contributors of different backgrounds an
 - Harassment, discrimination, or personal attacks
 - Doxxing or sharing private information without consent
 - Repeated disruptive behavior after feedback from maintainers
-- Bad-faith reviews, trolling, or deliberate derailment
+- Bad-faith reviews, trolling or deliberate derailment
 
 ## Enforcement
 
