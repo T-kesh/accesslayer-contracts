@@ -62,6 +62,14 @@ fn test_register_creator_event_data_is_indexer_friendly() {
 }
 
 #[test]
+fn test_register_creator_event_payload_field_order_is_documented() {
+    assert_eq!(
+        events::REGISTER_EVENT_DATA_FIELDS,
+        ["creator", "handle", "supply", "holder_count"]
+    );
+}
+
+#[test]
 fn test_register_creator_event_fires_once() {
     let env = Env::default();
     env.mock_all_auths();
@@ -133,6 +141,11 @@ fn test_buy_key_event_data_is_new_supply() {
     let (supply, payment): (u32, i128) = data.into_val(&env);
     assert_eq!(supply, 2);
     assert_eq!(payment, 100);
+}
+
+#[test]
+fn test_buy_key_event_payload_field_order_is_documented() {
+    assert_eq!(events::BUY_EVENT_DATA_FIELDS, ["supply", "payment"]);
 }
 
 #[test]

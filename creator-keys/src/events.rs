@@ -12,6 +12,12 @@ pub const REGISTER_EVENT_NAME: Symbol = symbol_short!("register");
 /// Event name for key purchase.
 pub const BUY_EVENT_NAME: Symbol = symbol_short!("buy");
 
+/// Stable field order for registration event payloads.
+pub const REGISTER_EVENT_DATA_FIELDS: [&str; 4] = ["creator", "handle", "supply", "holder_count"];
+
+/// Stable field order for buy event tuple payloads.
+pub const BUY_EVENT_DATA_FIELDS: [&str; 2] = ["supply", "payment"];
+
 /// Stable registration event payload for downstream indexers.
 ///
 /// Event shape:
