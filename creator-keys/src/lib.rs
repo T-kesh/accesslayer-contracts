@@ -75,11 +75,18 @@ pub mod fee {
         if total <= 0 {
             return Some((0, 0));
         }
-        let protocol_amount = total
-            .checked_mul(protocol_bps as i128)?
-            .checked_div(BPS_MAX as i128)?;
+        let protocol_amount =
+            checked_div_i128(total.checked_mul(protocol_bps as i128)?, BPS_MAX as i128)?;
         let creator_amount = total.checked_sub(protocol_amount)?;
         Some((creator_amount, protocol_amount))
+    }
+
+    /// Performs checked integer division for quote math helpers.
+    pub fn checked_div_i128(dividend: i128, divisor: i128) -> Option<i128> {
+        if divisor == 0 {
+            return None;
+        }
+        dividend.checked_div(divisor)
     }
 }
 
@@ -291,7 +298,7 @@ fn read_required_protocol_fee_config(env: &Env) -> Result<fee::FeeConfig, Contra
 ///
 /// Reads the key price from storage and confirms the creator is registered.
 /// Returns `(price)` on success, or the appropriate [`ContractError`] on failure.
-fn resolve_quote_inputs(env: &Env, creator: &Address) -> Result<i128, ContractError> {
+fn resolve_quote_inputs(env: &Env, creator: &Address) -> Result<Option<i128>, ContractError> {
     let price: i128 = env
         .storage()
         .persistent()
@@ -302,7 +309,32 @@ fn resolve_quote_inputs(env: &Env, creator: &Address) -> Result<i128, ContractEr
         return Err(ContractError::NotRegistered);
     }
 
-    Ok(price)
+    normalize_quote_amount(price)
+}
+
+/// Normalizes quote amounts before fee math is applied.
+///
+/// Zero-value quote requests are treated as no-op quotes and return `None`.
+/// Negative quote amounts are rejected consistently across buy and sell paths.
+fn normalize_quote_amount(amount: i128) -> Result<Option<i128>, ContractError> {
+    if amount < 0 {
+        return Err(ContractError::NotPositiveAmount);
+    }
+
+    if amount == 0 {
+        return Ok(None);
+    }
+
+    Ok(Some(amount))
+}
+
+fn zero_quote_response() -> QuoteResponse {
+    QuoteResponse {
+        price: 0,
+        creator_fee: 0,
+        protocol_fee: 0,
+        total_amount: 0,
+    }
 }
 
 /// Formats a quote response with overflow-safe total amount calculation.
@@ -781,7 +813,9 @@ impl CreatorKeysContract {
     /// Returns a [`QuoteResponse`] containing the current price and fee breakdown.
     /// Fees are calculated based on the fixed key price.
     pub fn get_buy_quote(env: Env, creator: Address) -> Result<QuoteResponse, ContractError> {
-        let price = resolve_quote_inputs(&env, &creator)?;
+        let Some(price) = resolve_quote_inputs(&env, &creator)? else {
+            return Ok(zero_quote_response());
+        };
         let (creator_fee, protocol_fee) = Self::compute_fees_for_payment(env.clone(), price)?;
         checked_format_quote_response(price, creator_fee, protocol_fee, true)
     }
@@ -796,7 +830,9 @@ impl CreatorKeysContract {
         creator: Address,
         holder: Address,
     ) -> Result<QuoteResponse, ContractError> {
-        let price = resolve_quote_inputs(&env, &creator)?;
+        let Some(price) = resolve_quote_inputs(&env, &creator)? else {
+            return Ok(zero_quote_response());
+        };
 
         let balance = Self::get_key_balance(env.clone(), creator, holder);
         if balance == 0 {
@@ -867,6 +903,39 @@ mod tests {
             let (creator, protocol) = fee::compute_fee_split(total, 9000, 1000);
             assert_eq!(creator + protocol, total, "total={}", total);
         }
+    }
+
+    #[test]
+    fn test_checked_div_i128_success() {
+        assert_eq!(fee::checked_div_i128(100, 10), Some(10));
+    }
+
+    #[test]
+    fn test_checked_div_i128_rejects_zero_divisor() {
+        assert_eq!(fee::checked_div_i128(100, 0), None);
+    }
+
+    #[test]
+    fn test_checked_div_i128_rejects_overflow() {
+        assert_eq!(fee::checked_div_i128(i128::MIN, -1), None);
+    }
+
+    #[test]
+    fn test_normalize_quote_amount_preserves_positive_amount() {
+        assert_eq!(super::normalize_quote_amount(100), Ok(Some(100)));
+    }
+
+    #[test]
+    fn test_normalize_quote_amount_maps_zero_to_noop() {
+        assert_eq!(super::normalize_quote_amount(0), Ok(None));
+    }
+
+    #[test]
+    fn test_normalize_quote_amount_rejects_negative_amount() {
+        assert_eq!(
+            super::normalize_quote_amount(-1),
+            Err(super::ContractError::NotPositiveAmount)
+        );
     }
 
     #[test]
