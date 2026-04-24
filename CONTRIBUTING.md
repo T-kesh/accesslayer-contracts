@@ -23,15 +23,13 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo test --workspace
 ```
 
-Or use the helper targets:
+You can also use the helper targets from the `Makefile` at the repo root (`make fmt-check`, `make clippy`, `make test`).
 
-```bash
-make fmt-check
-make clippy
-make test
-```
+## Integration test helpers
 
-For testnet deployment steps, required CLI setup, and the release checklist used for contract updates, see [docs/stellar-testnet-deployment.md](./docs/stellar-testnet-deployment.md).
+Shared setup for `creator-keys` integration tests lives in `creator-keys/tests/contract_test_env/`. Import the module with `mod contract_test_env;` and call the small helpers (env with mocked auths, register contract, set key price, set fees, register a test creator) instead of duplicating boilerplate in every file.
+
+For testnet deployment steps, required CLI setup, and the release checklist used for contract updates, see [docs/stellar-testnet-deployment.md](./docs/stellar-testnet-deployment.md). For **wasm artifact** naming, retention, and metadata, see [docs/deploy-artifacts.md](./docs/deploy-artifacts.md). For how **clients and servers** should depend on contract read surfaces and events, see [docs/contract-consumer-boundaries.md](./docs/contract-consumer-boundaries.md).
 
 ## Contract contribution rules
 
