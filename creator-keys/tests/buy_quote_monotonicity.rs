@@ -39,9 +39,9 @@ fn test_buy_quote_is_identical_across_consecutive_calls() {
     let env = test_env_with_auths();
     let (client, creator) = setup_with_fees(&env, 100);
 
-    let q1 = client.get_buy_quote(&creator).unwrap();
-    let q2 = client.get_buy_quote(&creator).unwrap();
-    let q3 = client.get_buy_quote(&creator).unwrap();
+    let q1 = client.get_buy_quote(&creator);
+    let q2 = client.get_buy_quote(&creator);
+    let q3 = client.get_buy_quote(&creator);
 
     assert_eq!(q1.price, q2.price);
     assert_eq!(q2.price, q3.price);
@@ -55,9 +55,9 @@ fn test_buy_quote_price_unchanged_after_one_buy() {
     let (client, creator) = setup_with_fees(&env, 100);
     let buyer = Address::generate(&env);
 
-    let before = client.get_buy_quote(&creator).unwrap();
+    let before = client.get_buy_quote(&creator);
     client.buy_key(&creator, &buyer, &100);
-    let after = client.get_buy_quote(&creator).unwrap();
+    let after = client.get_buy_quote(&creator);
 
     assert_eq!(before.price, after.price);
     assert_eq!(before.total_amount, after.total_amount);
@@ -69,9 +69,9 @@ fn test_buy_quote_price_unchanged_after_five_buys() {
     let (client, creator) = setup_with_fees(&env, 500);
     let buyer = Address::generate(&env);
 
-    let before = client.get_buy_quote(&creator).unwrap();
+    let before = client.get_buy_quote(&creator);
     buy_n(&client, &creator, &buyer, 5, 500);
-    let after = client.get_buy_quote(&creator).unwrap();
+    let after = client.get_buy_quote(&creator);
 
     assert_eq!(before.price, after.price, "price must be deterministic");
     assert_eq!(before.total_amount, after.total_amount);
@@ -83,12 +83,12 @@ fn test_buy_quote_price_unchanged_across_multiple_buyers_small_range() {
     let price = 200_i128;
     let (client, creator) = setup_with_fees(&env, price);
 
-    let q0 = client.get_buy_quote(&creator).unwrap();
+    let q0 = client.get_buy_quote(&creator);
 
     for _ in 0..10 {
         let buyer = Address::generate(&env);
         client.buy_key(&creator, &buyer, &price);
-        let q = client.get_buy_quote(&creator).unwrap();
+        let q = client.get_buy_quote(&creator);
         assert_eq!(
             q.price, q0.price,
             "price must remain constant across buyers"
@@ -102,9 +102,9 @@ fn test_buy_quote_total_amount_ordering_is_deterministic_small_range() {
     let (client, creator) = setup_with_fees(&env, 1_000);
     let buyer = Address::generate(&env);
 
-    let q_start = client.get_buy_quote(&creator).unwrap();
+    let q_start = client.get_buy_quote(&creator);
     buy_n(&client, &creator, &buyer, 3, 1_000);
-    let q_after = client.get_buy_quote(&creator).unwrap();
+    let q_after = client.get_buy_quote(&creator);
 
     // Fixed price: total_amount should be unchanged.
     assert_eq!(q_start.total_amount, q_after.total_amount);
@@ -120,7 +120,7 @@ fn test_buy_quote_fees_sum_to_total_minus_price() {
     let buyer = Address::generate(&env);
 
     buy_n(&client, &creator, &buyer, 2, 1_000);
-    let q = client.get_buy_quote(&creator).unwrap();
+    let q = client.get_buy_quote(&creator);
 
     // total_amount = price + creator_fee + protocol_fee for a buy quote
     assert_eq!(
@@ -138,12 +138,12 @@ fn test_buy_quote_stable_over_medium_volume_20_buys() {
     let price = 5_000_i128;
     let (client, creator) = setup_with_fees(&env, price);
 
-    let base_quote = client.get_buy_quote(&creator).unwrap();
+    let base_quote = client.get_buy_quote(&creator);
 
     for i in 0..20_u32 {
         let buyer = Address::generate(&env);
         client.buy_key(&creator, &buyer, &price);
-        let q = client.get_buy_quote(&creator).unwrap();
+        let q = client.get_buy_quote(&creator);
         assert_eq!(
             q.price,
             base_quote.price,
@@ -167,7 +167,7 @@ fn test_buy_quote_total_amount_never_below_price() {
 
     buy_n(&client, &creator, &buyer, 10, 10_000);
 
-    let q = client.get_buy_quote(&creator).unwrap();
+    let q = client.get_buy_quote(&creator);
     assert!(
         q.total_amount >= q.price,
         "buy quote total_amount must be >= price (fees are additive)"
@@ -181,10 +181,10 @@ fn test_buy_quote_price_point_1_is_stable() {
     let env = test_env_with_auths();
     let (client, creator) = setup_with_fees(&env, 1);
 
-    let q1 = client.get_buy_quote(&creator).unwrap();
+    let q1 = client.get_buy_quote(&creator);
     let buyer = Address::generate(&env);
     client.buy_key(&creator, &buyer, &1);
-    let q2 = client.get_buy_quote(&creator).unwrap();
+    let q2 = client.get_buy_quote(&creator);
 
     assert_eq!(q1.price, q2.price);
 }
@@ -195,10 +195,10 @@ fn test_buy_quote_price_point_large_is_stable() {
     let large_price = 1_000_000_i128;
     let (client, creator) = setup_with_fees(&env, large_price);
 
-    let q_before = client.get_buy_quote(&creator).unwrap();
+    let q_before = client.get_buy_quote(&creator);
     let buyer = Address::generate(&env);
     client.buy_key(&creator, &buyer, &large_price);
-    let q_after = client.get_buy_quote(&creator).unwrap();
+    let q_after = client.get_buy_quote(&creator);
 
     assert_eq!(q_before.price, q_after.price);
     assert_eq!(q_before.total_amount, q_after.total_amount);
