@@ -18,6 +18,7 @@ pub enum ContractError {
     FeeConfigNotSet = 7,
     InvalidFeeConfig = 8,
     InsufficientBalance = 9,
+    SellUnderflow = 10,
 }
 
 pub mod fee {
@@ -471,17 +472,17 @@ impl CreatorKeysContract {
 
         let new_balance = current_balance
             .checked_sub(1)
-            .ok_or(ContractError::Overflow)?;
+            .ok_or(ContractError::SellUnderflow)?;
         profile.supply = profile
             .supply
             .checked_sub(1)
-            .ok_or(ContractError::Overflow)?;
+            .ok_or(ContractError::SellUnderflow)?;
 
         if new_balance == 0 {
             profile.holder_count = profile
                 .holder_count
                 .checked_sub(1)
-                .ok_or(ContractError::Overflow)?;
+                .ok_or(ContractError::SellUnderflow)?;
         }
 
         let key = constants::storage::creator(&creator);
