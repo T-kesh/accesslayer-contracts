@@ -15,8 +15,10 @@ Error codes are defined in [`creator-keys/src/lib.rs`](../creator-keys/src/lib.r
 | 5 | `KeyPriceNotSet` | 5 | Attempt to use pricing operations (buy, sell, quote) before an admin has set a key price | Contact protocol admin to set a key price via `set_key_price` |
 | 6 | `NotPositiveAmount` | 6 | Amount is zero or negative where a positive value is required (e.g., `set_key_price`, `buy_key` payment) | Use a positive amount; for buy/sell, check user input for negative or zero values |
 | 7 | `FeeConfigNotSet` | 7 | Attempt to compute or query fees before an admin has set a protocol fee configuration | Contact protocol admin to set fee config via `set_fee_config` |
-| 8 | `InvalidFeeConfig` | 8 | Proposed fee configuration violates constraints: `creator_bps + protocol_bps != 10000` or `protocol_bps > 5000` | Ensure basis points sum to 10,000 and protocol share does not exceed 50%; see `fee::validate_fee_bps` for validation rules |
+| 8 | `InvalidFeeConfig` | 8 | Proposed fee configuration violates constraints: `creator_bps + protocol_bps != 10000` | Ensure basis points sum to 10,000; validate client-side before sending |
 | 9 | `InsufficientBalance` | 9 | Holder has no keys for the given creator (sell attempt with zero balance) | Verify holder owns keys before attempting a sell; call `get_key_balance` to check holdings |
+| 10 | `SellUnderflow` | 10 | Sell operation would underflow supply/balance (internal invariant violation) or sell quote would result in a negative net amount | Report if encountered; for quotes, check fee configuration relative to key price |
+| 11 | `ProtocolFeeExceedsCap` | 11 | Proposed fee configuration exceeds the maximum allowed protocol share (`protocol_bps > 5000`) | Reduce protocol share to 50% or lower; see `fee::PROTOCOL_BPS_MAX` |
 
 ## Integration Notes
 
@@ -28,7 +30,8 @@ Error codes are defined in [`creator-keys/src/lib.rs`](../creator-keys/src/lib.r
 ### Pricing and Fees
 
 - Code 5 (`KeyPriceNotSet`) and Code 7 (`FeeConfigNotSet`) are initialization gates. Clients should detect these and display a message like "Pricing has not been configured yet" rather than retrying immediately.
-- Code 8 (`InvalidFeeConfig`) is raised when basis points are invalid. Always validate client-side before sending transactions: `creator_bps + protocol_bps == 10000` and `protocol_bps <= 5000`.
+- Code 8 (`InvalidFeeConfig`) is raised when basis points are invalid. Always validate client-side before sending transactions: `creator_bps + protocol_bps == 10000`.
+- Code 11 (`ProtocolFeeExceedsCap`) is raised when the protocol share exceeds the cap: `protocol_bps <= 5000`.
 
 ### Buy and Sell
 

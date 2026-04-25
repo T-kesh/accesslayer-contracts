@@ -19,6 +19,7 @@ pub enum ContractError {
     InvalidFeeConfig = 8,
     InsufficientBalance = 9,
     SellUnderflow = 10,
+    ProtocolFeeExceedsCap = 11,
 }
 
 pub mod fee {
@@ -33,7 +34,7 @@ pub mod fee {
     /// expected economic bounds before they affect market logic.
     pub const PROTOCOL_BPS_MAX: u32 = 5_000;
 
-    #[derive(Clone)]
+    #[derive(Clone, Eq, PartialEq)]
     #[contracttype]
     pub struct FeeConfig {
         pub creator_bps: u32,
@@ -354,7 +355,9 @@ fn checked_format_quote_response(
     let total_amount = if is_buy {
         price.checked_add(fees).ok_or(ContractError::Overflow)?
     } else {
-        price.checked_sub(fees).ok_or(ContractError::Overflow)?
+        price
+            .checked_sub(fees)
+            .ok_or(ContractError::SellUnderflow)?
     };
 
     Ok(QuoteResponse {
@@ -652,14 +655,29 @@ impl CreatorKeysContract {
         protocol_bps: u32,
     ) -> Result<(), ContractError> {
         admin.require_auth();
-        if !fee::validate_fee_bps(creator_bps, protocol_bps) {
+        let Some(sum) = creator_bps.checked_add(protocol_bps) else {
             return Err(ContractError::InvalidFeeConfig);
+        };
+        if sum != fee::BPS_MAX {
+            return Err(ContractError::InvalidFeeConfig);
+        }
+        if protocol_bps > fee::PROTOCOL_BPS_MAX {
+            return Err(ContractError::ProtocolFeeExceedsCap);
         }
 
         let config = fee::FeeConfig {
             creator_bps,
             protocol_bps,
         };
+        if env
+            .storage()
+            .persistent()
+            .get::<DataKey, fee::FeeConfig>(&constants::storage::FEE_CONFIG)
+            .as_ref()
+            == Some(&config)
+        {
+            return Ok(());
+        }
         env.storage()
             .persistent()
             .set(&constants::storage::FEE_CONFIG, &config);
@@ -670,6 +688,15 @@ impl CreatorKeysContract {
         admin.require_auth();
         if price <= 0 {
             return Err(ContractError::NotPositiveAmount);
+        }
+        if env
+            .storage()
+            .persistent()
+            .get::<DataKey, i128>(&constants::storage::KEY_PRICE)
+            .as_ref()
+            == Some(&price)
+        {
+            return Ok(());
         }
         env.storage()
             .persistent()
@@ -687,6 +714,15 @@ impl CreatorKeysContract {
     /// for protocol fee routing.
     pub fn set_treasury_address(env: Env, admin: Address, treasury: Address) {
         admin.require_auth();
+        if env
+            .storage()
+            .persistent()
+            .get::<DataKey, Address>(&constants::storage::TREASURY_ADDRESS)
+            .as_ref()
+            == Some(&treasury)
+        {
+            return;
+        }
         env.storage()
             .persistent()
             .set(&constants::storage::TREASURY_ADDRESS, &treasury);
@@ -709,6 +745,15 @@ impl CreatorKeysContract {
     /// for protocol administration.
     pub fn set_protocol_admin(env: Env, admin: Address, new_admin: Address) {
         admin.require_auth();
+        if env
+            .storage()
+            .persistent()
+            .get::<DataKey, Address>(&constants::storage::ADMIN_ADDRESS)
+            .as_ref()
+            == Some(&new_admin)
+        {
+            return;
+        }
         env.storage()
             .persistent()
             .set(&constants::storage::ADMIN_ADDRESS, &new_admin);
@@ -972,7 +1017,7 @@ mod tests {
     #[test]
     fn test_checked_format_quote_response_sell_underflow_total() {
         let res = super::checked_format_quote_response(i128::MIN, 1, 0, false);
-        assert_eq!(res, Err(super::ContractError::Overflow));
+        assert_eq!(res, Err(super::ContractError::SellUnderflow));
     }
 }
 
