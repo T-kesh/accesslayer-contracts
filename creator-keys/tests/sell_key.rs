@@ -111,5 +111,4 @@ fn test_sell_full_exit_then_rebuy_updates_state() {
     assert_eq!(client.get_total_key_supply(&creator), 1);
     assert_eq!(client.get_key_balance(&creator, &trader), 1);
     assert_eq!(client.get_creator_holder_count(&creator), 1);
-
 }

@@ -61,10 +61,12 @@ fn test_treasury_accumulation_precision_small_value_trade_loop() {
         protocol_total = protocol_total.checked_add(protocol_fee).unwrap();
     }
 
-    assert_eq!(protocol_total, 0, "protocol fee should floor to zero for dust");
     assert_eq!(
-        creator_total,
-        iterations as i128,
+        protocol_total, 0,
+        "protocol fee should floor to zero for dust"
+    );
+    assert_eq!(
+        creator_total, iterations as i128,
         "creator receives full dust amount when protocol fee floors to zero"
     );
 }

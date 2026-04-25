@@ -39,7 +39,10 @@ fn test_register_creator_emits_event() {
         .into_val(&env);
     assert_eq!(topic, events::REGISTER_EVENT_NAME);
 
-    let event_creator: Address = topics.get(events::TOPIC_CREATOR_INDEX).unwrap().into_val(&env);
+    let event_creator: Address = topics
+        .get(events::TOPIC_CREATOR_INDEX)
+        .unwrap()
+        .into_val(&env);
     assert_eq!(event_creator, creator);
 }
 
@@ -113,10 +116,16 @@ fn test_buy_key_emits_event_with_correct_topics() {
         .into_val(&env);
     assert_eq!(event_sym, events::BUY_EVENT_NAME);
 
-    let event_creator: Address = topics.get(events::TOPIC_CREATOR_INDEX).unwrap().into_val(&env);
+    let event_creator: Address = topics
+        .get(events::TOPIC_CREATOR_INDEX)
+        .unwrap()
+        .into_val(&env);
     assert_eq!(event_creator, creator);
 
-    let event_buyer: Address = topics.get(events::TOPIC_BUYER_INDEX).unwrap().into_val(&env);
+    let event_buyer: Address = topics
+        .get(events::TOPIC_BUYER_INDEX)
+        .unwrap()
+        .into_val(&env);
     assert_eq!(event_buyer, buyer);
 }
 
