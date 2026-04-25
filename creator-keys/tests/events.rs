@@ -33,10 +33,13 @@ fn test_register_creator_emits_event() {
     let last = events.last().unwrap();
     let (_, topics, _data) = last;
 
-    let topic: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
+    let topic: soroban_sdk::Symbol = topics
+        .get(events::TOPIC_EVENT_NAME_INDEX)
+        .unwrap()
+        .into_val(&env);
     assert_eq!(topic, events::REGISTER_EVENT_NAME);
 
-    let event_creator: Address = topics.get(1).unwrap().into_val(&env);
+    let event_creator: Address = topics.get(events::TOPIC_CREATOR_INDEX).unwrap().into_val(&env);
     assert_eq!(event_creator, creator);
 }
 
@@ -104,13 +107,16 @@ fn test_buy_key_emits_event_with_correct_topics() {
     let (_, topics, _) = last;
 
     // Topics: (events::BUY_EVENT_NAME, creator, buyer)
-    let event_sym: soroban_sdk::Symbol = topics.get(0).unwrap().into_val(&env);
+    let event_sym: soroban_sdk::Symbol = topics
+        .get(events::TOPIC_EVENT_NAME_INDEX)
+        .unwrap()
+        .into_val(&env);
     assert_eq!(event_sym, events::BUY_EVENT_NAME);
 
-    let event_creator: Address = topics.get(1).unwrap().into_val(&env);
+    let event_creator: Address = topics.get(events::TOPIC_CREATOR_INDEX).unwrap().into_val(&env);
     assert_eq!(event_creator, creator);
 
-    let event_buyer: Address = topics.get(2).unwrap().into_val(&env);
+    let event_buyer: Address = topics.get(events::TOPIC_BUYER_INDEX).unwrap().into_val(&env);
     assert_eq!(event_buyer, buyer);
 }
 
@@ -163,7 +169,7 @@ fn test_buy_key_event_present_after_purchase() {
     // Verify the buy event is present in the event log
     let events = env.events().all();
     let has_buy_event = events.iter().any(|(_, topics, _)| {
-        if let Some(v) = topics.get(0) {
+        if let Some(v) = topics.get(events::TOPIC_EVENT_NAME_INDEX) {
             let sym: soroban_sdk::Symbol = v.into_val(&env);
             sym == events::BUY_EVENT_NAME
         } else {
