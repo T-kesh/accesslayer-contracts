@@ -203,3 +203,159 @@ fn test_buy_quote_price_point_large_is_stable() {
     assert_eq!(q_before.price, q_after.price);
     assert_eq!(q_before.total_amount, q_after.total_amount);
 }
+
+#[test]
+fn test_buy_quote_monotonic_with_zero_creator_fee() {
+    let env = test_env_with_auths();
+    let price = 1_000_i128;
+    let (client, _) = register_creator_keys(&env);
+    // Set 50% creator fee, 50% protocol fee (protocol max is 5000 bps = 50%)
+    set_pricing_and_fees(&env, &client, price, 5000, 5000);
+    let creator = register_test_creator(&env, &client, "alice");
+
+    let q1 = client.get_buy_quote(&creator);
+    let buyer = Address::generate(&env);
+    client.buy_key(&creator, &buyer, &q1.total_amount);
+    let q2 = client.get_buy_quote(&creator);
+
+    assert_eq!(q1.price, q2.price, "price must remain constant");
+    assert_eq!(
+        q1.creator_fee, q1.protocol_fee,
+        "fees should be equal at 50/50 split"
+    );
+    assert_eq!(q2.creator_fee, q2.protocol_fee, "fees should remain equal");
+    assert_eq!(
+        q1.total_amount, q2.total_amount,
+        "total_amount must be stable"
+    );
+}
+
+#[test]
+fn test_buy_quote_monotonic_with_zero_protocol_fee() {
+    let env = test_env_with_auths();
+    let price = 2_000_i128;
+    let (client, _) = register_creator_keys(&env);
+    // Set 100% creator fee, 0% protocol fee (must sum to 10,000 bps)
+    set_pricing_and_fees(&env, &client, price, 10000, 0);
+    let creator = register_test_creator(&env, &client, "bob");
+
+    let q1 = client.get_buy_quote(&creator);
+    let buyer = Address::generate(&env);
+    client.buy_key(&creator, &buyer, &q1.total_amount);
+    let q2 = client.get_buy_quote(&creator);
+
+    assert_eq!(q1.price, q2.price, "price must remain constant");
+    assert_eq!(q1.protocol_fee, 0, "protocol fee should be zero");
+    assert_eq!(q2.protocol_fee, 0, "protocol fee should remain zero");
+    assert_eq!(
+        q1.total_amount, q2.total_amount,
+        "total_amount must be stable"
+    );
+}
+
+#[test]
+fn test_buy_quote_stable_across_50_sequential_purchases() {
+    let env = test_env_with_auths();
+    let price = 750_i128;
+    let (client, creator) = setup_with_fees(&env, price);
+
+    let initial_quote = client.get_buy_quote(&creator);
+
+    for i in 0..50_u32 {
+        let buyer = Address::generate(&env);
+        client.buy_key(&creator, &buyer, &price);
+
+        let current_quote = client.get_buy_quote(&creator);
+        assert_eq!(
+            current_quote.price,
+            initial_quote.price,
+            "price must remain constant after {} purchases",
+            i + 1
+        );
+        assert_eq!(
+            current_quote.total_amount,
+            initial_quote.total_amount,
+            "total_amount must remain constant after {} purchases",
+            i + 1
+        );
+        assert_eq!(
+            current_quote.creator_fee,
+            initial_quote.creator_fee,
+            "creator_fee must remain constant after {} purchases",
+            i + 1
+        );
+        assert_eq!(
+            current_quote.protocol_fee,
+            initial_quote.protocol_fee,
+            "protocol_fee must remain constant after {} purchases",
+            i + 1
+        );
+    }
+}
+
+#[test]
+fn test_buy_quote_multiple_creators_independent_monotonicity() {
+    let env = test_env_with_auths();
+    let (client, _) = register_creator_keys(&env);
+
+    // Setup two creators with the same global price but different identities
+    let price = 1_000_i128;
+
+    // Set fee config and price (8000 + 2000 = 10,000 bps)
+    set_pricing_and_fees(&env, &client, price, 8000, 2000);
+    let creator_alice = register_test_creator(&env, &client, "alice");
+    let creator_bob = register_test_creator(&env, &client, "bob");
+
+    // Get initial quotes - should be identical since price is global
+    let q_alice_1 = client.get_buy_quote(&creator_alice);
+    let q_bob_1 = client.get_buy_quote(&creator_bob);
+
+    // Verify both creators have the same quote initially (global price)
+    assert_eq!(
+        q_alice_1.price, q_bob_1.price,
+        "both creators share the global price"
+    );
+    assert_eq!(
+        q_alice_1.total_amount, q_bob_1.total_amount,
+        "both creators have same total_amount"
+    );
+
+    // Make purchases for both creators using their respective total_amounts
+    let buyer1 = Address::generate(&env);
+    let buyer2 = Address::generate(&env);
+
+    client.buy_key(&creator_alice, &buyer1, &q_alice_1.total_amount);
+    client.buy_key(&creator_bob, &buyer2, &q_bob_1.total_amount);
+
+    // Get quotes after purchases
+    let q_alice_2 = client.get_buy_quote(&creator_alice);
+    let q_bob_2 = client.get_buy_quote(&creator_bob);
+
+    // Each creator's quotes should remain stable after their own purchases
+    assert_eq!(
+        q_alice_1.price, q_alice_2.price,
+        "alice's price must be stable"
+    );
+    assert_eq!(
+        q_alice_1.total_amount, q_alice_2.total_amount,
+        "alice's total_amount must be stable"
+    );
+
+    assert_eq!(q_bob_1.price, q_bob_2.price, "bob's price must be stable");
+    assert_eq!(
+        q_bob_1.total_amount, q_bob_2.total_amount,
+        "bob's total_amount must be stable"
+    );
+
+    // Verify they still have the same price (global price model)
+    assert_eq!(
+        q_alice_2.price, q_bob_2.price,
+        "both creators continue to share the global price"
+    );
+
+    // But they should have independent supplies
+    let alice_supply = client.get_total_key_supply(&creator_alice);
+    let bob_supply = client.get_total_key_supply(&creator_bob);
+    assert_eq!(alice_supply, 1, "alice should have 1 key sold");
+    assert_eq!(bob_supply, 1, "bob should have 1 key sold");
+}
