@@ -72,6 +72,14 @@ Access Layer uses a **fixed price model**:
 3. **Supply independence**: Buying or selling keys should not affect the quote price
 4. **Creator independence**: All creators have the same price (but independent supplies)
 
+### Sell Quote Monotonicity (Incremental Sells)
+
+For the fixed price model, sell quotes are expected to be stable across incremental sells until the holder runs out of keys:
+
+- Calling `get_sell_quote` repeatedly for the same `(creator, holder)` should return the same `QuoteResponse` as long as `get_key_balance(creator, holder) > 0`.
+- Once the holder balance reaches `0`, `get_sell_quote` should reject with `ContractError::InsufficientBalance`.
+- If fee configuration and price would imply a negative sell payout (fees exceed price), `get_sell_quote` should reject with `ContractError::SellUnderflow` rather than returning an invalid negative amount.
+
 ## Fee Configuration Rules
 
 Understanding fee rules is essential for writing correct tests:
