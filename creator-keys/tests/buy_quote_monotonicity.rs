@@ -13,10 +13,7 @@ use contract_test_env::{
 use creator_keys::CreatorKeysContractClient;
 use soroban_sdk::{testutils::Address as _, Address, Env};
 
-fn setup_with_fees<'a>(
-    env: &'a Env,
-    price: i128,
-) -> (CreatorKeysContractClient<'a>, Address) {
+fn setup_with_fees<'a>(env: &'a Env, price: i128) -> (CreatorKeysContractClient<'a>, Address) {
     let (client, _) = register_creator_keys(env);
     set_pricing_and_fees(env, &client, price, 9000, 1000);
     let creator = register_test_creator(env, &client, "alice");
@@ -148,12 +145,14 @@ fn test_buy_quote_stable_over_medium_volume_20_buys() {
         client.buy_key(&creator, &buyer, &price);
         let q = client.get_buy_quote(&creator).unwrap();
         assert_eq!(
-            q.price, base_quote.price,
+            q.price,
+            base_quote.price,
             "quote price must be stable after {} buys",
             i + 1
         );
         assert_eq!(
-            q.total_amount, base_quote.total_amount,
+            q.total_amount,
+            base_quote.total_amount,
             "total_amount must be stable after {} buys",
             i + 1
         );

@@ -93,7 +93,11 @@ fn test_sell_two_keys_succeeds_without_underflow_error() {
     client.sell_key(&creator, &seller);
 
     let result = client.try_sell_key(&creator, &seller);
-    assert!(result.is_ok(), "second sell should succeed, got {:?}", result);
+    assert!(
+        result.is_ok(),
+        "second sell should succeed, got {:?}",
+        result
+    );
 }
 
 // ── Supply and balance remain consistent after sell ───────────────────────
