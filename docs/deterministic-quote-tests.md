@@ -281,6 +281,9 @@ The `contract_test_env` module provides helpers to reduce boilerplate:
 // Create test environment with mocked auth
 let env = test_env_with_auths();
 
+// Override the default deterministic timestamp when a test needs a specific moment
+set_test_timestamp(&env, 1_700_000_123);
+
 // Register contract and get client
 let (client, contract_id) = register_creator_keys(&env);
 
@@ -296,6 +299,10 @@ let admin = set_pricing_and_fees(&env, &client, 1000, 9000, 1000);
 // Register a test creator
 let creator = register_test_creator(&env, &client, "alice");
 ```
+
+Use `set_test_timestamp` in tests that need a deterministic ledger time (for
+example snapshot assertions or time-sensitive setup). A recommended default is
+`DEFAULT_TEST_TIMESTAMP` (`1700000000`).
 
 ### Custom Setup Function
 

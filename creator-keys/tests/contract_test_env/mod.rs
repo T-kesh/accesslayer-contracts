@@ -8,7 +8,20 @@
 #![allow(dead_code)]
 
 use creator_keys::{constants, CreatorKeysContract, CreatorKeysContractClient};
-use soroban_sdk::{testutils::Address as _, Address, Env, String};
+use soroban_sdk::{
+    testutils::{Address as _, Ledger},
+    Address, Env, String,
+};
+
+/// Stable timestamp used by integration tests unless a test needs to override it.
+pub const DEFAULT_TEST_TIMESTAMP: u64 = 1_700_000_000;
+
+/// Sets ledger timestamp to a deterministic value for reproducible test snapshots.
+pub fn set_test_timestamp(env: &Env, timestamp: u64) {
+    let mut ledger = env.ledger().get();
+    ledger.timestamp = timestamp;
+    env.ledger().set(ledger);
+}
 
 /// Default [`Env`] for tests: enables mocked authorization for authed entrypoints.
 pub fn test_env_with_auths() -> Env {
