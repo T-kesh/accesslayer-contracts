@@ -82,7 +82,7 @@ pub mod fee {
         }
         let protocol_amount =
             checked_div_i128(total.checked_mul(protocol_bps as i128)?, BPS_MAX as i128)?;
-        let creator_amount = total.checked_sub(protocol_amount)?;
+        let creator_amount = checked_sub_i128(total, protocol_amount)?;
         Some((creator_amount, protocol_amount))
     }
 
@@ -92,6 +92,11 @@ pub mod fee {
             return None;
         }
         dividend.checked_div(divisor)
+    }
+
+    /// Performs checked integer subtraction for quote math helpers.
+    pub fn checked_sub_i128(left: i128, right: i128) -> Option<i128> {
+        left.checked_sub(right)
     }
 }
 
@@ -385,9 +390,7 @@ fn checked_format_quote_response(
     let total_amount = if is_buy {
         price.checked_add(fees).ok_or(ContractError::Overflow)?
     } else {
-        price
-            .checked_sub(fees)
-            .ok_or(ContractError::SellUnderflow)?
+        fee::checked_sub_i128(price, fees).ok_or(ContractError::SellUnderflow)?
     };
 
     Ok(QuoteResponse {
@@ -1002,6 +1005,16 @@ mod tests {
     #[test]
     fn test_checked_div_i128_rejects_zero_divisor() {
         assert_eq!(fee::checked_div_i128(100, 0), None);
+    }
+
+    #[test]
+    fn test_checked_sub_i128_success() {
+        assert_eq!(fee::checked_sub_i128(100, 10), Some(90));
+    }
+
+    #[test]
+    fn test_checked_sub_i128_underflow() {
+        assert_eq!(fee::checked_sub_i128(i128::MIN, 1), None);
     }
 
     #[test]
