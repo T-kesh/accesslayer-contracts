@@ -143,6 +143,8 @@ fn test_register_creator_persists_registration_metadata() {
     assert_eq!(profile.holder_count, 0);
     assert_eq!(profile.fee_recipient, creator);
 }
+
+#[test]
 fn test_duplicate_registration_fails() {
     let env = Env::default();
     env.mock_all_auths();
