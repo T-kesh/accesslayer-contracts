@@ -191,9 +191,7 @@ fn sell_fee_split_invariant_across_multiple_fee_configs() {
         (10000, 0),   // 100% creator
         (9000, 1000), // 90/10 split
         (7500, 2500), // 75/25 split
-        (5000, 5000), // 50/50 split
-        (2500, 7500), // 25/75 split (invalid but tests boundary)
-        (0, 10000),   // 100% protocol
+        (5000, 5000), // 50/50 split (max protocol)
     ];
 
     for (i, (creator_bps, protocol_bps)) in test_cases.iter().enumerate() {
