@@ -82,7 +82,7 @@ pub mod fee {
         }
         let protocol_amount =
             checked_div_i128(total.checked_mul(protocol_bps as i128)?, BPS_MAX as i128)?;
-        let creator_amount = total.checked_sub(protocol_amount)?;
+        let creator_amount = checked_sub_i128(total, protocol_amount)?;
         Some((creator_amount, protocol_amount))
     }
 
@@ -92,6 +92,11 @@ pub mod fee {
             return None;
         }
         dividend.checked_div(divisor)
+    }
+
+    /// Performs checked integer subtraction for quote math helpers.
+    pub fn checked_sub_i128(left: i128, right: i128) -> Option<i128> {
+        left.checked_sub(right)
     }
 }
 
@@ -385,9 +390,7 @@ fn checked_format_quote_response(
     let total_amount = if is_buy {
         price.checked_add(fees).ok_or(ContractError::Overflow)?
     } else {
-        price
-            .checked_sub(fees)
-            .ok_or(ContractError::SellUnderflow)?
+        fee::checked_sub_i128(price, fees).ok_or(ContractError::SellUnderflow)?
     };
 
     Ok(QuoteResponse {
@@ -689,6 +692,15 @@ impl CreatorKeysContract {
     /// creator-scoped accessor without mutating state.
     pub fn get_creator_treasury_share(env: Env, creator: Address) -> Result<u32, ContractError> {
         Self::get_creator_fee_bps(env, creator)
+    }
+
+    /// Read-only view: returns the configured protocol treasury share in basis points.
+    ///
+    /// This value is sourced from the current protocol fee configuration and is
+    /// expressed in stable basis-point units.
+    pub fn get_protocol_treasury_share_bps(env: Env) -> Result<u32, ContractError> {
+        let config = read_required_protocol_fee_config(&env)?;
+        Ok(config.protocol_bps)
     }
 
     pub fn set_fee_config(
@@ -1002,6 +1014,16 @@ mod tests {
     #[test]
     fn test_checked_div_i128_rejects_zero_divisor() {
         assert_eq!(fee::checked_div_i128(100, 0), None);
+    }
+
+    #[test]
+    fn test_checked_sub_i128_success() {
+        assert_eq!(fee::checked_sub_i128(100, 10), Some(90));
+    }
+
+    #[test]
+    fn test_checked_sub_i128_underflow() {
+        assert_eq!(fee::checked_sub_i128(i128::MIN, 1), None);
     }
 
     #[test]
