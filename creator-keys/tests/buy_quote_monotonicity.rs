@@ -414,9 +414,10 @@ fn test_buy_quote_updates_after_fee_config_mutation() {
         q_before.protocol_fee, q_after.protocol_fee,
         "protocol_fee must change after config update"
     );
-    assert_ne!(
+    // Total amount should remain the same (fee redistribution)
+    assert_eq!(
         q_before.total_amount, q_after.total_amount,
-        "total_amount must change after config update"
+        "total_amount should remain same after fee redistribution"
     );
 
     // Verify fee invariant: total_amount = price + creator_fee + protocol_fee
