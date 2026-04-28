@@ -391,8 +391,14 @@ fn test_buy_quote_updates_after_fee_config_mutation() {
 
     // Verify quote reflects updated fee config (no stale reads)
     assert_eq!(q_after.price, price, "price should remain unchanged");
-    assert_eq!(q_after.creator_fee, 500, "creator_fee should reflect new config");
-    assert_eq!(q_after.protocol_fee, 500, "protocol_fee should reflect new config");
+    assert_eq!(
+        q_after.creator_fee, 500,
+        "creator_fee should reflect new config"
+    );
+    assert_eq!(
+        q_after.protocol_fee, 500,
+        "protocol_fee should reflect new config"
+    );
     assert_eq!(
         q_after.total_amount,
         price + 500 + 500,
